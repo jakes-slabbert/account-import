@@ -1,0 +1,56 @@
+﻿@page "/"
+@using System.IO
+@using Bitventure_Accounts.Shared.Commands;
+@using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+@inject HttpClient Http
+@inject IWebAssemblyHostEnvironment env
+
+<PageTitle>Import</PageTitle>
+
+<h3>@Message</h3>
+
+<form @onsubmit="OnSubmit">
+    <InputFile class="btn btn-primary" OnChange="OnInputFileChange" accept=".csv"/>
+    <br /><br />
+    <button class="btn btn-primary" type="submit">Upload Selected File(s)</button>
+</form>
+
+@code {
+    string Message = "No file(s) selected";
+    IBrowserFile selectedFile;
+
+    private void OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        if (e.File.ContentType != "text/csv")
+        {
+            Message = "Please select a valid file type (.csv)";
+            return;
+        }
+        selectedFile = e.File;
+        Message = $"{selectedFile.Name} selected";
+        this.StateHasChanged();
+    }
+
+    private async void OnSubmit()
+    {
+        Stream stream = selectedFile.OpenReadStream();
+        MemoryStream ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        stream.Close();
+
+        var uploadedFile = new UploadFileCommand();
+        uploadedFile.FileName = selectedFile.Name;
+        uploadedFile.FileContent = ms.ToArray();
+        ms.Close();
+        var result = await Http.PostAsJsonAsync<UploadFileCommand>("/api/file/upload", uploadedFile);
+        if (!result.IsSuccessStatusCode)
+        {
+            Message = "Oops, something went wrong.";
+            this.StateHasChanged();
+            return;
+        }
+
+        Message = $"{selectedFile.Name} uploaded to server";
+        this.StateHasChanged();
+    }
+}
